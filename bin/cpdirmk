@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+
+VERSION="1.5.0"
+
+# Function to print usage
+print_usage() {
+    cat << EOF
+Usage: cpdirmk [OPTIONS] <directory>
+
+Copy directory structure to Markdown format.
+
+Options:
+  --ignore <pattern>    Ignore files/directories matching the pattern (can be used multiple times)
+  --output <file>       Write output to a file instead of stdout
+  --version             Show version information
+  -h, --help            Show this help message
+
+Examples:
+  cpdirmk --ignore "__pycache__" --ignore "*.pyc" /path/to/directory
+  cpdirmk --ignore "node_modules" --ignore ".git" --output output.md /path/to/directory
+EOF
+}
+
+# Function to print version
+print_version() {
+    echo "cpdirmk version $VERSION"
+}
+
+# Initialize variables
+ignore_patterns=()
+output_file=""
+directory=""
+MAX_FILE_SIZE=$((1024 * 1024))  # 1MB
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --ignore)
+            ignore_patterns+=("$2")
+            shift 2
+            ;;
+        --output)
+            output_file="$2"
+            shift 2
+            ;;
+        --version)
+            print_version
+            exit 0
+            ;;
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        *)
+            if [[ -z "$directory" ]]; then
+                directory="$1"
+            else
+                echo "Error: Too many arguments." >&2
+                print_usage
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Check if directory is provided
+if [[ -z "$directory" ]]; then
+    echo "Error: Directory not specified." >&2
+    print_usage
+    exit 1
+fi
+
+# Check if directory exists
+if [[ ! -d "$directory" ]]; then
+    echo "Error: Directory '$directory' does not exist." >&2
+    exit 1
+fi
+
+# Function to get file extension
+get_extension() {
+    filename=$(basename -- "$1")
+    extension="${filename##*.}"
+    echo "${extension,,}"
+}
+
+# Function to check if file should be ignored
+should_ignore() {
+    local path="$1"
+    local relative_path="${path#$directory/}"
+    
+    for pattern in "${ignore_patterns[@]}"; do
+        if [[ "$relative_path" =~ $pattern ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Function to check if file is binary
+is_binary() {
+    local file="$1"
+    if file "$file" | grep -q "binary"; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to get file size in a portable way
+get_file_size() {
+    local file="$1"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        stat -f%z "$file"
+    else
+        stat -c%s "$file"
+    fi
+}
+
+# Function to get human-readable file size
+get_human_readable_size() {
+    local file="$1"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        du -h "$file" | cut -f1
+    else
+        du -h "$file" | cut -f1
+    fi
+}
+
+# Function to generate directory tree
+generate_tree() {
+    local dir="$1"
+    local prefix="$2"
+    local project_name="$(basename "$directory")"
+    local output=""
+
+    for item in "$dir"/*; do
+        if should_ignore "$item"; then
+            continue
+        fi
+
+        local basename=$(basename "$item")
+        if [[ -d "$item" ]]; then
+            output+="$prefix├── $basename/\n"
+            output+="$(generate_tree "$item" "$prefix│   ")"
+        elif [[ -f "$item" ]]; then
+            output+="$prefix├── $basename\n"
+        fi
+    done
+
+    echo -n "$output"
+}
+
+# Function to copy directory structure to markdown
+copy_dir_to_markdown() {
+    local dir="$1"
+    local base_dir="$2"
+    local project_name="$(basename "$directory")"
+    local output=""
+
+    for item in "$dir"/*; do
+        if should_ignore "$item"; then
+            continue
+        fi
+
+        if [[ -d "$item" ]]; then
+            output+="$(copy_dir_to_markdown "$item" "$base_dir")"
+        elif [[ -f "$item" ]]; then
+            relative_path="${item#$base_dir/}"
+            output+="===============================\n"
+            output+="Project Name: '$project_name'\n"
+            output+="File Path: '$relative_path'\n"
+            output+="File Content:\n"
+            
+            local file_size=$(get_file_size "$item")
+            if is_binary "$item"; then
+                local size=$(get_human_readable_size "$item")
+                output+="(Binary file, size: $size)\n"
+            elif (( file_size > MAX_FILE_SIZE )); then
+                local size=$(get_human_readable_size "$item")
+                output+="(Large text file, size: $size)\n"
+            else
+                local ext=$(get_extension "$item")
+                if [[ -n "$ext" ]]; then
+                    output+="\`\`\`$ext\n"
+                else
+                    output+="\`\`\`\n"
+                fi
+                output+="$(head -n 50 "$item")\n"
+                output+="\`\`\`\n"
+            fi
+            output+="===============================\n\n"
+        fi
+    done
+
+    echo -n "$output"
+}
+
+# Main execution
+main() {
+    local project_name="$(basename "$directory")"
+    local output="# Project: $project_name\n\n"
+    output+="## Directory Structure\n\n"
+    output+="$project_name/\n"
+    output+="$(generate_tree "$directory" "│   ")\n\n"
+    output+="## File Contents\n\n"
+    output+="===============================\n"
+    output+="Project Name: '$project_name'\n"
+    output+="Directory Path: '$directory'\n"
+    output+="===============================\n\n"
+    output+="$(copy_dir_to_markdown "$directory" "$directory")"
+
+    if [[ -n "$output_file" ]]; then
+        echo -e "$output" > "$output_file"
+        echo "Output written to $output_file"
+    else
+        echo -e "$output"
+    fi
+}
+
+main

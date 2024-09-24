@@ -1,0 +1,45 @@
+.TH CPDIRMK 1 "September 2024" "cpdirmk 1.1" "User Commands"
+.SH NAME
+cpdirmk \- Copy a directory structure to a Markdown file
+.SH SYNOPSIS
+.B cpdirmk
+[\fI\,OPTIONS\/\fR] \fI\,DIRECTORY\/\fR
+.SH DESCRIPTION
+.B cpdirmk
+is a tool that copies the structure of a directory to a Markdown file,
+including the content of text files.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show the help message and exit.
+.TP
+.BR \-v ", " \-\-version
+Show the program version and exit.
+.TP
+.BR \-o ", " \-\-output=\fIFILE\fR
+Specify the output file (default: output.md).
+.TP
+.BR \-d ", " \-\-depth=\fINUMBER\fR
+Set the maximum depth of the directory tree (default: no limit).
+.TP
+.BR \-i ", " \-\-ignore=\fIPATTERN\fR
+Ignore files/directories that match the specified pattern.
+.SH EXAMPLES
+.TP
+Copy the structure of the current directory to output.md:
+.B cpdirmk .
+.TP
+Copy the structure of a specific directory to a custom file:
+.B cpdirmk \-o structure.md /path/to/directory
+.TP
+Limit the tree depth and ignore specific files/directories:
+.B cpdirmk \-d 3 \-i '*.tmp' \-i 'node_modules' /path/to/project
+.SH NOTES
+The `is_special_file` function has been enhanced to identify a wide range of file types that are not suitable for direct display in Markdown, including binary, compressed, image, audio, video, document, and other formats.
+.SH AUTHOR
+Written by Eric Coleta.
+.SH REPORTING BUGS
+Report bugs to ericbercol@gmail.com.
+.SH COPYRIGHT
+Copyright © 2024 Eric Coleta. License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it. There is NO WARRANTY, to the extent permitted by law.
